@@ -126,6 +126,17 @@ export default function SpeechTranslator() {
     );
   }
 
+
+  // Text-to-Speech function
+  const speakText = (text, language) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language === 'en' ? 'en-US' : 'zh-CN';
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
     <div className="translator-container">
       {/* Language Selection */}
@@ -202,6 +213,7 @@ export default function SpeechTranslator() {
       <div className="info-box">
         <h4>How to use:</h4>
         <ul>
+        {/* eslint-disable-next-line react/no-unescaped-entities */}
           <li>Select your source and target languages</li>
           <li>Click '"Start Listening"' to begin recording</li>
           <li>Speak clearly into your microphone</li>

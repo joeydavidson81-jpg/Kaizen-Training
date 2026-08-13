@@ -1,38 +1,256 @@
-#!/usr/bin/env python3
-import os
+'use client';
 
-# Change to your project directory
-os.chdir(r'C:\Users\gameo\Downloads\speech-translator\speech-translator')
+import React, { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 
-# Read the file
-with open('app/components/SpeechTranslator.js', 'r') as f:
-    content = f.read()
+export default function SpeechTranslator() {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [translation, setTranslation] = useState('');
+  const [sourceLanguage, setSourceLanguage] = useState('en');
+  const [targetLanguage, setTargetLanguage] = useState('zh');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const recognitionRef = useRef(null);
+  const [isBrowserSupported, setIsBrowserSupported] = useState(true);
 
-# TTS function to add
-tts_code = '''  const speakText = (text, language) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === 'en' ? 'en-US' : 'zh-CN';
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
+  // Initialize Web Speech API
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setIsBrowserSupported(false);
+      setError('Speech Recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.language = sourceLanguage === 'en' ? 'en-US' : 'zh-CN';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setError('');
+    };
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        setTranscript((prev) => prev + finalTranscript);
+        handleTranslation(finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      setError(`Speech Recognition Error: ${event.error}`);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [sourceLanguage]);
+
+  const handleTranslation = async (text) => {
+    if (!text.trim()) return;
+
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/translate', {
+        text: text.trim(),
+        source: sourceLanguage,
+        target: targetLanguage,
+      });
+
+      setTranslation((prev) => prev + response.data.translation + ' ');
+      speakText(response.data.translation, targetLanguage);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setError('Failed to translate text. Please check your internet connection.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-'''
+  const startListening = () => {
+    if (recognitionRef.current && isBrowserSupported) {
+      setTranscript('');
+      setTranslation('');
+      recognitionRef.current.start();
+    }
+  };
 
-# Find "return (" and insert before it
-if 'return (' in content:
-    content = content.replace('  return (', tts_code + '  return (', 1)
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  };
 
-    with open('app/components/SpeechTranslator.js', 'w') as f:
-        f.write(content)
+  const swapLanguages = () => {
+    setSourceLanguage(sourceLanguage === 'en' ? 'zh' : 'en');
+    setTargetLanguage(targetLanguage === 'en' ? 'zh' : 'en');
+    setTranscript('');
+    setTranslation('');
+  };
 
-    print("✓ Step 1-2: TTS code added!")
+  const clearAll = () => {
+    setTranscript('');
+    setTranslation('');
+    setError('');
+  };
 
-    # Step 3: Commit and push
-    os.system('git add app/components/SpeechTranslator.js')
-    os.system('git commit -m "Add text-to-speech"')
-    os.system('git push')
-    print("✓ Step 3: Pushed to GitHub!")
-else:
-    print("Error: Could not find return statement")
+  if (!isBrowserSupported) {
+    return (
+      <div className="card error">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+
+  // Text-to-Speech function
+  const speakText = (text, language) => {
+    if (!text || !window.speechSynthesis) return;
+
+    const speechSynthesis = window.speechSynthesis;
+    const languageCode = language === 'en' ? 'en-US' : 'zh-CN';
+    const languagePrefix = language === 'en' ? 'en' : 'zh';
+    let hasSpoken = false;
+    let fallbackTimeout;
+
+    const speak = () => {
+      if (hasSpoken) return;
+      hasSpoken = true;
+      window.clearTimeout(fallbackTimeout);
+      speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+
+      const voices = speechSynthesis.getVoices();
+      const voice = voices.find((candidate) => candidate.lang === languageCode)
+        || voices.find((candidate) => candidate.lang.toLowerCase().startsWith(languagePrefix));
+      const utterance = new SpeechSynthesisUtterance(text);
+
+      utterance.lang = languageCode;
+      utterance.rate = 0.9;
+      if (voice) utterance.voice = voice;
+
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    };
+
+    const handleVoicesChanged = () => speak();
+
+    if (speechSynthesis.getVoices().length > 0) {
+      speak();
+      return;
+    }
+
+    speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged, { once: true });
+    fallbackTimeout = window.setTimeout(speak, 100);
+  };
+
+  return (
+    <div className="translator-container">
+      {/* Language Selection */}
+      <div className="language-selector">
+        <div className="language-pair">
+          <select value={sourceLanguage} onChange={(e) => setSourceLanguage(e.target.value)} disabled={isListening}>
+            <option value="en">English 🇬🇧</option>
+            <option value="zh">Mandarin Chinese 🇨🇳</option>
+          </select>
+          <button onClick={swapLanguages} className="swap-btn" disabled={isListening}>
+            ⇄
+          </button>
+          <select value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)} disabled={isListening}>
+            <option value="en">English 🇬🇧</option>
+            <option value="zh">Mandarin Chinese 🇨🇳</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Control Buttons */}
+      <div className="controls">
+        <button
+          onClick={startListening}
+          disabled={isListening}
+          className="btn btn-primary"
+        >
+          🎤 Start Listening
+        </button>
+        <button
+          onClick={stopListening}
+          disabled={!isListening}
+          className="btn btn-danger"
+        >
+          ⏹️ Stop
+        </button>
+        <button onClick={clearAll} className="btn btn-secondary">
+          🗑️ Clear
+        </button>
+      </div>
+
+      {/* Status Indicator */}
+      {isListening && (
+        <div className="status">
+          <div className="listening-indicator"></div>
+          <span>Listening...</span>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="error-message">
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Transcript */}
+      <div className="output-section">
+        <h3>Transcript ({sourceLanguage === 'en' ? 'English' : 'Mandarin'})</h3>
+        <div className="output-box">
+          {transcript || <span className="placeholder">Your speech will appear here...</span>}
+        </div>
+      </div>
+
+      {/* Translation */}
+      <div className="output-section">
+        <h3>Translation ({targetLanguage === 'en' ? 'English' : 'Mandarin'})</h3>
+        <div className="output-box">
+          {loading && <span className="loading">Translating...</span>}
+          {translation || <span className="placeholder">Translation will appear here...</span>}
+        </div>
+      </div>
+
+      {/* Info Box */}
+      <div className="info-box">
+        <h4>How to use:</h4>
+        <ul>
+          <li>Select your source and target languages</li>
+          <li>Click &quot;Start Listening&quot; to begin recording</li>
+          <li>Speak clearly into your microphone</li>
+          <li>Translations appear in real-time</li>
+          <li>Click &quot;Stop&quot; when finished</li>
+        </ul>
+      </div>
+    </div>
+  );
+}

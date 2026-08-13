@@ -1,0 +1,16 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "nodeVersion": "18.x",
+  "env": {
+    "NEXT_PUBLIC_APP_NAME": "Speech Translator"
+  },
+  "functions": {
+    "pages/api/**": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  }
+}

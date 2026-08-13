@@ -203,10 +203,10 @@ export default function SpeechTranslator() {
         <h4>How to use:</h4>
         <ul>
           <li>Select your source and target languages</li>
-          <li>Click "Start Listening" to begin recording</li>
+          <li>Click '"Start Listening"' to begin recording</li>
           <li>Speak clearly into your microphone</li>
           <li>Translations appear in real-time</li>
-          <li>Click "Stop" when finished</li>
+          <li>Click '"Stop"' when finished</li>
         </ul>
       </div>
     </div>

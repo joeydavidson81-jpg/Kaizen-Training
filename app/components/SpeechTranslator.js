@@ -243,10 +243,10 @@ export default function SpeechTranslator() {
          <ul>
        {/* eslint-disable-next-line react/no-unescaped-entities */}
                    <li>Select your source and target languages</li>
-           <li>Click '"Start Listening"' to begin recording</li>
+           <li>{/* eslint-disable-next-line react/no-unescaped-entities */}Click &quot;Start Listening&quot; to begin recording</li>
            <li>Speak clearly into your microphone</li>
            <li>Translations appear in real-time</li>
-           <li>Click '"Stop"' when finished</li>
+           <li>Click '"Sto<li>{/* eslint-disable-next-line react/no-unescaped-entities */}Click &quot;Stop&quot; when finished</li>
            <li>Click the 🔊 Speak button to hear the translation aloud</li>
          </ul>
          </div>

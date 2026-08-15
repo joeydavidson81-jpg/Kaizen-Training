@@ -13,6 +13,23 @@ export default function SpeechTranslator() {
     const recognitionRef = useRef(null);
     const [isBrowserSupported, setIsBrowserSupported] = useState(true);
     const [voicesLoaded, setVoicesLoaded] = useState(false);
+    const [audioEnabled, setAudioEnabled] = useState(false);
+    const [volume, setVolume] = useState(1);
+
+    // Enable audio on mobile with user interaction
+    const enableAudio = () => {
+      setAudioEnabled(true);
+      // Test audio by speaking a confirmation
+      const utterance = new SpeechSynthesisUtterance('Audio enabled');
+      utterance.volume = 1;
+      utterance.rate = 1;
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.log('Test audio failed:', e);
+      }
+    };
+
     // Initialize Web Speech API and Text-to-Speech voices
   useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -121,19 +138,29 @@ export default function SpeechTranslator() {
             </div>
           );
     }
-    // Text-to-Speech function
+    // Text-to-Speech function with mobile support
   const speakText = (text, language) => {
         if (!window.speechSynthesis || !text.trim()) {
                 setError('Text-to-Speech is not supported or no text to speak.');
                 return;
         }
+
+        // Mobile audio requirement check
+        if (!audioEnabled) {
+                setError('⚠️ Please click "Enable Audio" button first to hear translations on mobile');
+                return;
+        }
+
         try {
                 setIsSpeaking(true);
+                setError('');
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = language === 'en' ? 'en-US' : 'zh-CN';
                 utterance.rate = 0.9;
                 utterance.pitch = 1;
+                utterance.volume = Math.max(0.5, volume); // Ensure minimum volume on mobile
+
                 // Get available voices and find the best match
           const voices = window.speechSynthesis.getVoices();
                 if (voices.length > 0) {
@@ -149,13 +176,13 @@ export default function SpeechTranslator() {
                 };
                 utterance.onerror = (event) => {
                           console.error('TTS error:', event);
-                          setError(`Speech synthesis error: ${event.error}`);
+                          setError(`Speech synthesis error: ${event.error}. Make sure device volume is not muted.`);
                           setIsSpeaking(false);
                 };
                 window.speechSynthesis.speak(utterance);
         } catch (e) {
                 console.error('TTS error:', e);
-                setError('Failed to play audio. Please try again.');
+                setError('Failed to play audio. Ensure device volume is ON and not muted.');
                 setIsSpeaking(false);
         }
   };
@@ -177,6 +204,37 @@ export default function SpeechTranslator() {
   </select>
   </div>
   </div>
+{/* Audio Enable & Volume Control */}
+      {!audioEnabled && (
+        <div style={{ marginBottom: '20px', padding: '15px', background: '#fff3cd', borderRadius: '10px', border: '2px solid #ffc107', textAlign: 'center' }}>
+          <p style={{ marginBottom: '12px', color: '#856404', fontWeight: '600' }}>📱 Mobile users: Enable audio to hear translations</p>
+          <button onClick={enableAudio} className="btn btn-primary">
+            🔊 Enable Audio
+          </button>
+        </div>
+      )}
+
+      {audioEnabled && (
+        <div style={{ marginBottom: '20px', padding: '15px', background: '#d4edda', borderRadius: '10px', border: '2px solid #28a745' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <span style={{ color: '#155724', fontWeight: '600' }}>🔊 Audio Enabled</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ color: '#155724', fontWeight: '500' }}>Volume:</label>
+              <input
+                type="range"
+                min="0.5"
+                max="1"
+                step="0.1"
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                style={{ width: '120px', cursor: 'pointer' }}
+              />
+              <span style={{ color: '#155724', fontWeight: '600' }}>{Math.round(volume * 100)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
 {/* Control Buttons */}
       <div className="controls">
                 <button
@@ -243,11 +301,17 @@ export default function SpeechTranslator() {
          <ul>
        {/* eslint-disable-next-line react/no-unescaped-entities */}
                    <li>Select your source and target languages</li>
+           {!audioEnabled && (
+             <li style={{ color: '#f44336', fontWeight: '600' }}>
+               📱 <strong>MOBILE:</strong> Click &quot;Enable Audio&quot; button first to hear speech
+             </li>
+           )}
            <li>{/* eslint-disable-next-line react/no-unescaped-entities */}Click &quot;Start Listening&quot; to begin recording</li>
            <li>Speak clearly into your microphone</li>
-           <li>Translations appear in real-time</li>
-           <li>Click '"Sto<li>{/* eslint-disable-next-line react/no-unescaped-entities */}Click &quot;Stop&quot; when finished</li>
-           <li>Click the 🔊 Speak button to hear the translation aloud</li>
+           <li>Translations appear in real-time with automatic speech</li>
+           <li>{/* eslint-disable-next-line react/no-unescaped-entities */}Click &quot;Stop&quot; when finished</li>
+           <li>⚠️ <strong>If no sound:</strong> Check that device volume is ON (not muted) and not on silent mode</li>
+           <li>Click the 🔊 Speak button to replay the translation</li>
          </ul>
          </div>
          </div>

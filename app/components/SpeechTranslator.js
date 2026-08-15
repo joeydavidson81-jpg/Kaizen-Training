@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 export default function SpeechTranslator() {
@@ -30,6 +30,78 @@ export default function SpeechTranslator() {
       console.log('Test audio failed:', e);
     }
   };
+
+  // Text-to-Speech function with mobile support
+  const speakText = useCallback((text, language) => {
+    if (!window.speechSynthesis || !text.trim()) {
+      setError('Text-to-Speech is not supported or no text to speak.');
+      return;
+    }
+
+    if (!audioEnabled) {
+      setError('⚠️ Please click "Enable Audio" button first to hear translations on mobile');
+      return;
+    }
+
+    try {
+      setIsSpeaking(true);
+      setError('');
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language === 'en' ? 'en-US' : 'zh-CN';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = Math.max(0.5, volume);
+
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        const langCode = language === 'en' ? 'en' : 'zh';
+        const matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(langCode));
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+        }
+      }
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+
+      utterance.onerror = (event) => {
+        console.error('TTS error:', event);
+        setError(`Speech synthesis error: ${event.error}. Make sure device volume is not muted.`);
+        setIsSpeaking(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error('TTS error:', e);
+      setError('Failed to play audio. Ensure device volume is ON and not muted.');
+      setIsSpeaking(false);
+    }
+  }, [audioEnabled, volume]);
+
+  const handleTranslation = useCallback(async (text) => {
+    if (!text.trim()) return;
+
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/translate', {
+        text: text.trim(),
+        source: sourceLanguage,
+        target: targetLanguage,
+      });
+
+      const translatedText = response.data.translation;
+      setTranslation((prev) => prev + translatedText + ' ');
+      speakText(translatedText, targetLanguage);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setError('Failed to translate text. Please check your internet connection.');
+    } finally {
+      setLoading(false);
+    }
+  }, [sourceLanguage, speakText, targetLanguage]);
 
   // Initialize Web Speech API and Text-to-Speech voices
   useEffect(() => {
@@ -100,29 +172,7 @@ export default function SpeechTranslator() {
         recognitionRef.current.abort();
       }
     };
-  }, [sourceLanguage]);
-
-  const handleTranslation = async (text) => {
-    if (!text.trim()) return;
-
-    setLoading(true);
-    try {
-      const response = await axios.post('/api/translate', {
-        text: text.trim(),
-        source: sourceLanguage,
-        target: targetLanguage,
-      });
-
-      const translatedText = response.data.translation;
-      setTranslation((prev) => prev + translatedText + ' ');
-      speakText(translatedText, targetLanguage);
-    } catch (err) {
-      console.error('Translation error:', err);
-      setError('Failed to translate text. Please check your internet connection.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [handleTranslation, sourceLanguage]);
 
   const startListening = () => {
     if (recognitionRef.current && isBrowserSupported) {
@@ -158,56 +208,6 @@ export default function SpeechTranslator() {
       </div>
     );
   }
-
-  // Text-to-Speech function with mobile support
-  const speakText = (text, language) => {
-    if (!window.speechSynthesis || !text.trim()) {
-      setError('Text-to-Speech is not supported or no text to speak.');
-      return;
-    }
-
-    if (!audioEnabled) {
-      setError('⚠️ Please click "Enable Audio" button first to hear translations on mobile');
-      return;
-    }
-
-    try {
-      setIsSpeaking(true);
-      setError('');
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = language === 'en' ? 'en-US' : 'zh-CN';
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = Math.max(0.5, volume);
-
-      const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        const langCode = language === 'en' ? 'en' : 'zh';
-        const matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(langCode));
-        if (matchedVoice) {
-          utterance.voice = matchedVoice;
-        }
-      }
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-
-      utterance.onerror = (event) => {
-        console.error('TTS error:', event);
-        setError(`Speech synthesis error: ${event.error}. Make sure device volume is not muted.`);
-        setIsSpeaking(false);
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.error('TTS error:', e);
-      setError('Failed to play audio. Ensure device volume is ON and not muted.');
-      setIsSpeaking(false);
-    }
-  };
 
   return (
     <div className="translator-container">
@@ -331,13 +331,13 @@ export default function SpeechTranslator() {
           <li>Select your source and target languages</li>
           {!audioEnabled && (
             <li style={{ color: '#C6533F', fontWeight: '600' }}>
-              📱 <strong>MOBILE:</strong> Click "Enable Audio" button first to hear speech
+              📱 <strong>MOBILE:</strong> Click &quot;Enable Audio&quot; button first to hear speech
             </li>
           )}
-          <li>Click "Start Listening" to begin recording</li>
+          <li>Click &quot;Start Listening&quot; to begin recording</li>
           <li>Speak clearly into your microphone</li>
           <li>Translations appear in real-time with automatic speech</li>
-          <li>Click "Stop" when finished</li>
+          <li>Click &quot;Stop&quot; when finished</li>
           <li>⚠️ <strong>If no sound:</strong> Check that device volume is ON (not muted)</li>
           <li>Click the 🔊 Replay button to hear the translation again</li>
         </ul>
